@@ -170,7 +170,7 @@ if (!$curTitle) {
     exit;
 }
 
-my @cmd= ( $handbrake, "--preset", $profile, "--input", $inFile, "--output", $outFile, "--format", $format, "--title", $title, "--markers", "--decomb" );
+my @cmd= ( $handbrake, "--preset", $profile, "--input", $inFile, "--output", $outFile, "--format", $format, "--title", $title, "--markers", "--decomb", "--optimize" );
 
 my $audio= $opts{a};
 
