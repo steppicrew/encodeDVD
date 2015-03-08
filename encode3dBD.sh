@@ -28,7 +28,7 @@ trap cleanup EXIT
 meta="$tempdir/demux.meta"
 avs="$tempdir/sbs.avs"
 
-echo "MUXOPT --no-pcr-on-video-pid --new-audio-pes --demux --vbr  --vbv-len=500" > demux.meta
+echo "MUXOPT --no-pcr-on-video-pid --new-audio-pes --demux --vbr  --vbv-len=500" > "$meta"
 tsMuxeR "$mkv" | perl -e '
     use strict;
     my %data= ();
@@ -36,7 +36,7 @@ tsMuxeR "$mkv" | perl -e '
         chomp;
         unless ( $_ ) {
             if ( %data && ( $data{type} eq "MVC" || $data{type} eq "H.264" ) ) {
-                print "$data{id}, \"'"$mkv"'\", insertSEI, contSPS, track=$data{track}, lang=$data{lang}, subTrack=$data{subtrack}\n";
+                print "$data{id}, \"'"`realpath "$mkv"`"'\", insertSEI, contSPS, track=$data{track}, lang=$data{lang}, subTrack=$data{subtrack}\n";
             }
             %data= ();
             next;
@@ -52,10 +52,10 @@ tsMuxeR "$mkv" | perl -e '
 echo "************** demuxing video"
 tsMuxeR "$meta" "$tempdir"
 
-for file in "$tempdir/."*.mvc; do
+for file in "$tempdir/"*.mvc; do
     mvc="$file"
 done
-for file in "$tempdir/."*.264; do
+for file in "$tempdir/"*.264; do
     left="$file"
 done
 
@@ -87,7 +87,7 @@ if [ "$cropTop" ]; then
     rightCodec="Crop($rightCodec,$cropLeft,$cropTop,-$cropRight,-$cropBottom)"
 fi
 
-cat > half-sbs.avs << EOT
+cat > "$avs" << EOT
 LoadPlugin("DGMVCDecode.dll")
 vid=dgmvcsource("$left","$mvc",view=0,frames=$frames)
 left=$leftCodec
@@ -99,9 +99,10 @@ outfile="$outdir/`basename "$mkv"`"
 
 echo "************** starting encoding $outfile"
 # wine avs2yuv full-sbs.avs - | ffmpeg -f yuv4mpegpipe -i - -c:v libx264 -preset fast -tune film "$outfile"
-wine avs2yuv half-sbs.avs - | ffmpeg -f yuv4mpegpipe -i - -i "$mkv" -map 0:v -map 1 -map -1:v -c:v libx264 \
+wine avs2yuv "$avs" - | ffmpeg -f yuv4mpegpipe -i - -i "$mkv" -map 0:v -map 1 -map -1:v -c:v libx264 \
     -preset medium -tune film -level 4 -crf 25 \
     -b-pyramid normal -partitions p8x8,b8x8,i4x4 \
     -c:a copy -c:s copy -c:d copy -c:t copy \
     "$outfile"
 
+mkclean --remux --optimize "$outfile" "$outfile.clean" && mv "$outfile.clean" "$outfile"

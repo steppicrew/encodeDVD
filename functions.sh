@@ -68,4 +68,6 @@ function simpleEncode {
     echo "Running in 10s ${cmd[@]}"
     sleep 10s
     "${cmd[@]}"
+
+    mkclean --remux --optimize "$outName" "$outName.clean" && mv "$outName.clean" "$outName"
 }
