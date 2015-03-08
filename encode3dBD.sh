@@ -2,8 +2,20 @@
 
 mkv="$1"
 
+cropTop="$2"
+cropLeft="$3"
+cropBottom="$4"
+cropRight="$5"
+
+if [ "$cropTop" ]; then
+    test -z "$cropLeft"   && cropLeft="0"
+    test -z "$cropBottom" && cropBottom="$cropTop"
+    test -z "$cropRight"  && cropRight="$cropLeft"
+fi
+
+
 if [ ! -f "$mkv" ]; then
-    echo "Usage: $0 [mkv file with mvc track]"
+    echo "Usage: $0 <mkv file with mvc track> [<cropTop> [<cropLeft> [<cropBottom> [<cropRight>]]]]"
     exit 2
 fi
 
@@ -72,11 +84,19 @@ frames=`mkvinfo "$mkv" | perl -e '
     print int($length * $fps);
 '`
 
+leftCodec="vid.selecteven()"
+rightCodec="vid.selectodd()"
+
+if [ "$cropTop" ]; then
+    leftCodec="Crop($leftCodec,$cropLeft,$cropTop,-$cropRight,-$cropBottom)"
+    rightCodec="Crop($rightCodec,$cropLeft,$cropTop,-$cropRight,-$cropBottom)"
+fi
+
 cat > half-sbs.avs << EOT
 LoadPlugin("DGMVCDecode.dll")
 vid=dgmvcsource("$left","$mvc",view=0,frames=$frames)
-left=vid.selecteven()
-right=vid.selectodd()
+left=$leftCodec
+right=$rightCodec
 stackhorizontal(horizontalreduceby2(left),horizontalreduceby2(right))
 EOT
 
