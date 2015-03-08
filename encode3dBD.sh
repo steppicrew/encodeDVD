@@ -2,22 +2,15 @@
 
 mkv="$1"
 
-cropTop="$2"
-cropLeft="$3"
-cropBottom="$4"
-cropRight="$5"
-
-if [ "$cropTop" ]; then
-    test -z "$cropLeft"   && cropLeft="0"
-    test -z "$cropBottom" && cropBottom="$cropTop"
-    test -z "$cropRight"  && cropRight="$cropLeft"
-fi
-
-
 if [ ! -f "$mkv" ]; then
     echo "Usage: $0 <mkv file with mvc track> [<cropTop> [<cropLeft> [<cropBottom> [<cropRight>]]]]"
     exit 2
 fi
+
+realpath=`realpath "$0"`
+source "`dirname "$realpath"`/functions.sh"
+
+crop="`cropdetect "$mkv"`"
 
 tempdir="`dirname "$0"`/tmp/`basename "$mkv" .mkv`"
 outdir="`dirname "$0"`/out"
@@ -25,7 +18,8 @@ test -d "$tempdir" || mkdir -p "$tempdir"
 test -d "$outdir"  || mkdir -p "$outdir"
 
 function cleanup {
-    test -d "$tempdir" && rm -rf "$tempdir"
+    echo "Exit"
+#    test -d "$tempdir" && rm -rf "$tempdir"
 }
 
 trap cleanup EXIT
@@ -58,15 +52,16 @@ tsMuxeR "$mkv" | perl -e '
 echo "************** demuxing video"
 tsMuxeR "$meta" "$tempdir"
 
-for file in "$tempdir/"*.mvc; do
+for file in "$tempdir/."*.mvc; do
     mvc="$file"
 done
-for file in "$tempdir/"*.264; do
+for file in "$tempdir/."*.264; do
     left="$file"
 done
 
 if [ ! -r "$mvc" -o ! -r "$left" ]; then
     echo "could not find MVC or 264 file in $@"
+    ls -al "$tempdir"
     exit 2
 fi
 
@@ -104,8 +99,9 @@ outfile="$outdir/`basename "$mkv"`"
 
 echo "************** starting encoding $outfile"
 # wine avs2yuv full-sbs.avs - | ffmpeg -f yuv4mpegpipe -i - -c:v libx264 -preset fast -tune film "$outfile"
-wine avs2yuv half-sbs.avs - | ffmpeg -f yuv4mpegpipe -i - -c:v libx264 \
+wine avs2yuv half-sbs.avs - | ffmpeg -f yuv4mpegpipe -i - -i "$mkv" -map 0:v -map 1 -map -1:v -c:v libx264 \
     -preset medium -tune film -level 4 -crf 25 \
     -b-pyramid normal -partitions p8x8,b8x8,i4x4 \
+    -c:a copy -c:s copy -c:d copy -c:t copy \
     "$outfile"
 
