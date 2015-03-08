@@ -23,6 +23,12 @@ function cropdetect {
     '
 }
 
+function cleanFile {
+    local file="$1"
+
+    mkclean --remux "$file" "$file.clean" && mv "$file.clean" "$file"
+}
+
 function simpleEncode {
     inName="$1"
     crf="$2"
@@ -69,5 +75,5 @@ function simpleEncode {
     sleep 10s
     "${cmd[@]}"
 
-    mkclean --remux --optimize "$outName" "$outName.clean" && mv "$outName.clean" "$outName"
+    cleanFile "$outName"
 }

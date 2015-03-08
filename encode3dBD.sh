@@ -18,8 +18,8 @@ test -d "$tempdir" || mkdir -p "$tempdir"
 test -d "$outdir"  || mkdir -p "$outdir"
 
 function cleanup {
-    echo "Exit"
-#    test -d "$tempdir" && rm -rf "$tempdir"
+    echo "Exiting"
+    test -d "$tempdir" && rm -rf "$tempdir"
 }
 
 trap cleanup EXIT
@@ -89,7 +89,7 @@ fi
 
 cat > "$avs" << EOT
 LoadPlugin("DGMVCDecode.dll")
-vid=dgmvcsource("$left","$mvc",view=0,frames=$frames)
+vid=dgmvcsource("`realpath "$left"`","`realpath "$mvc"`",view=0,frames=$frames)
 left=$leftCodec
 right=$rightCodec
 stackhorizontal(horizontalreduceby2(left),horizontalreduceby2(right))
@@ -98,11 +98,16 @@ EOT
 outfile="$outdir/`basename "$mkv"`"
 
 echo "************** starting encoding $outfile"
-# wine avs2yuv full-sbs.avs - | ffmpeg -f yuv4mpegpipe -i - -c:v libx264 -preset fast -tune film "$outfile"
-wine avs2yuv "$avs" - | ffmpeg -f yuv4mpegpipe -i - -i "$mkv" -map 0:v -map 1 -map -1:v -c:v libx264 \
-    -preset medium -tune film -level 4 -crf 25 \
-    -b-pyramid normal -partitions p8x8,b8x8,i4x4 \
-    -c:a copy -c:s copy -c:d copy -c:t copy \
-    "$outfile"
 
-mkclean --remux --optimize "$outfile" "$outfile.clean" && mv "$outfile.clean" "$outfile"
+ffmpegCmd=(
+    ffmpeg -f yuv4mpegpipe -i - -i "$mkv" -map 0:v -map 1 -map -1:v -c:v libx264
+    -preset medium -tune film -level 4 -crf 25
+    -b-pyramid normal -partitions p8x8,b8x8,i4x4
+    -c:a copy -c:s copy -c:d copy -c:t copy
+    "$outfile"
+)
+wineCmd=( wine avs2yuv "$avs" - )
+
+"${wineCmd[@]}" | "${ffmpegCmd[@]}"
+
+cleanFile "$outfile"
