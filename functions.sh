@@ -63,7 +63,7 @@ function simpleEncode {
     test "${filter[*]}" && filter=( '-vf' "${filter[@]}" )
 
     cmd=(
-        ffmpeg -i "$inName" -c:v libx264
+        ffmpeg -i "$inName" -map 0 -c:v libx264
         -preset medium -tune film -level 4.1 -crf "$crf"
         -b-pyramid normal -partitions p8x8,b8x8,i4x4
         "${filter[@]}"
