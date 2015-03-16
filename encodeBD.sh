@@ -3,4 +3,4 @@
 realpath=`realpath "$0"`
 source "`dirname "$realpath"`/functions.sh"
 
-simpleEncode "$1" 25
+simpleEncode "$1"

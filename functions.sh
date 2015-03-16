@@ -31,8 +31,10 @@ function cleanFile {
 
 function simpleEncode {
     inName="$1"
-    crf="$2"
-    test "$crf" || crf=20
+
+    shift
+    options=( )
+    test "$*" && options=( "$@" )
 
     outDir="`dirname "$inName"`/.out"
     outName="$outDir/`basename "$inName"`"
@@ -64,9 +66,10 @@ function simpleEncode {
 
     cmd=(
         ffmpeg -i "$inName" -map 0 -c:v libx264
-        -preset medium -tune film -level 4.1 -crf "$crf"
+        -preset medium -tune film -crf 20
         -b-pyramid normal -partitions p8x8,b8x8,i4x4
         "${filter[@]}"
+        "${options[@]}"
         -c:a copy -c:s copy -c:d copy -c:t copy
         "$outName"
     )

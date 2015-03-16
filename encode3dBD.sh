@@ -19,7 +19,7 @@ test -d "$outdir"  || mkdir -p "$outdir"
 
 function cleanup {
     echo "Exiting"
-    test -d "$tempdir" && rm -rf "$tempdir"
+#    test -d "$tempdir" && rm -rf "$tempdir"
 }
 
 trap cleanup EXIT
@@ -50,7 +50,7 @@ tsMuxeR "$mkv" | perl -e '
 ' >> "$meta"
 
 echo "************** demuxing video"
-tsMuxeR "$meta" "$tempdir"
+test -f "$tempdir/file_muxed" || ( tsMuxeR "$meta" "$tempdir" && touch "$tempdir/filemuxed" )
 
 for file in "$tempdir/"*.mvc; do
     mvc="$file"
@@ -60,7 +60,7 @@ for file in "$tempdir/"*.264; do
 done
 
 if [ ! -r "$mvc" -o ! -r "$left" ]; then
-    echo "could not find MVC or 264 file in $@"
+    echo "could not find MVC or 264 file in $tempdir"
     ls -al "$tempdir"
     exit 2
 fi
@@ -97,17 +97,30 @@ EOT
 
 outfile="$outdir/`basename "$mkv"`"
 
+filter=( )
+test "$crop" && filter=( "${filter[@]}" "$crop" )
+
+test "${filter[*]}" && filter=( '-vf' "${filter[@]}" )
+
 echo "************** starting encoding $outfile"
 
 ffmpegCmd=(
-    ffmpeg -f yuv4mpegpipe -i - -i "$mkv" -map 0:v -map 1 -map -1:v -c:v libx264
-    -preset medium -tune film -level 4 -crf 25
+    ffmpeg -f yuv4mpegpipe -i - -c:v libx264
+    "${filter[@]}"
+    -preset medium -tune film
     -b-pyramid normal -partitions p8x8,b8x8,i4x4
-    -c:a copy -c:s copy -c:d copy -c:t copy
     "$outfile"
 )
 wineCmd=( wine avs2yuv "$avs" - )
 
 "${wineCmd[@]}" | "${ffmpegCmd[@]}"
+
+exit
+
+ffmpegCmd=(
+    ffmpeg -f yuv4mpegpipe -i "$outfile.mkv" -i "$mkv" -map 0:v -map 1 -map -1:v
+    -c:v copy -c:a copy -c:s copy -c:d copy -c:t copy
+    "$outfile"
+)
 
 cleanFile "$outfile"
