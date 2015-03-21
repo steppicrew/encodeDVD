@@ -3,7 +3,7 @@
 realpath=`realpath "$0"`
 source "`dirname "$realpath"`/functions.sh"
 
-simpleEncode "$1"
+simpleEncode "$@"
 
 # multiplex new video and all other streams from original file into out file
 #mv "$outName" "$outName.tmp"
