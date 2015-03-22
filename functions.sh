@@ -71,9 +71,9 @@ function simpleEncode {
         my $inter= 0;
         my $progress= 0;
         while (<>) {
-            if ( /TFF:\s+(\d+)\s+BFF:\s+(\d+)\s+Progressive:\s+(\d+)/ ) {
+            if ( /Multi frame .+ TFF:\s+(\d+)\s+BFF:\s+(\d+)\s+Progressive:\s+(\d+)\s+Undetermined:\s+(\d+)/ ) {
                 $inter+= $1 + $2;
-                $progress+= $3;
+                $progress+= $3 + $4;
             }
         }
         print "1" if $inter > $progress;
