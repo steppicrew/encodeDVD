@@ -2,7 +2,7 @@
 
 function cropdetect {
     local file="$1"
-    local length=`mkvinfo "$file" | perl -ne 'if (/Dauer:\s+([\d\.]+)/) { print int($1 * $_ / 11) . " " for (1..10); }'`
+    local length=`mkvinfo "$file" | perl -ne 'if (/Dauer:\s+([\d\.]+)/) { print int($1 * $_ / 10) . " " for (2..8); }'`
     local start
     for start in $length; do
         ffmpeg -ss $start -i "$file" -t 1 -vf cropdetect -f null - 2>&1
@@ -100,7 +100,7 @@ function simpleEncode {
     videoOptions=( "${newOptions[@]}" )
 
     # if there is no crf options, add -crf 20
-    test "$crfFound" -eq 0 && videoOptions=( "${videoOptions[@]}" '-crf' '25' )
+    test "$crfFound" -eq 0 && videoOptions=( "${videoOptions[@]}" '-crf' '20' )
 
     # if no crop is given, try detecting and prepend
     if [[ "$filter" != *crop=* ]]; then
