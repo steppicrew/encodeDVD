@@ -12,6 +12,8 @@ source "`dirname "$realpath"`/functions.sh"
 
 crop="`cropdetect "$mkv"`"
 
+#crop="crop=1920:800:0:140"
+
 tempdir="`dirname "$0"`/tmp/`basename "$mkv" .mkv`"
 outdir="`dirname "$0"`/out"
 test -d "$tempdir" || mkdir -p "$tempdir"
@@ -50,7 +52,7 @@ tsMuxeR "$mkv" | perl -e '
 ' >> "$meta"
 
 echo "************** demuxing video"
-test -f "$tempdir/file_muxed" || ( tsMuxeR "$meta" "$tempdir" && touch "$tempdir/filemuxed" )
+test -f "$tempdir/file_muxed" || ( tsMuxeR "$meta" "$tempdir" && touch "$tempdir/file_muxed" )
 
 for file in "$tempdir/"*.mvc; do
     mvc="$file"
