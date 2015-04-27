@@ -44,7 +44,11 @@ function cropdetect {
 function cleanFile {
     local file="$1"
 
-    mkclean --remux "$file" "$file.clean" && mv "$file.clean" "$file"
+    mkclean --remux "$file" "$file.clean"
+    newLength=`du -k "$file.clean" | cut -f 1`
+
+    # only rename file if result is larger than 100k (mkclean does not always return an error)
+    test "$newLnegth" -gt 100 && mv "$file.clean" "$file"
 }
 
 function simpleEncode {
