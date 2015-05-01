@@ -48,7 +48,7 @@ function cleanFile {
     newLength=`du -k "$file.clean" | cut -f 1`
 
     # only rename file if result is larger than 100k (mkclean does not always return an error)
-    test "$newLnegth" -gt 100 && mv "$file.clean" "$file"
+    test "$newLength" -gt 100 && mv "$file.clean" "$file"
 }
 
 function simpleEncode {
