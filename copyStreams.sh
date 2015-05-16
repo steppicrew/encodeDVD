@@ -21,3 +21,12 @@ ffmpeg -i "$infile" -map 0 -vcodec copy -acodec copy -scodec copy "$outfile"
 
 # change aspect ratio (DVD 16:9)
 # mkvpropedit "$oufile" --edit track:v1 --set pixel-width=720 --set pixel-height=576 --set display-width=1024 --set display-height=576
+
+
+# convert srt-File to PGS
+# in WINDOWS (or tsMuxeR 2.6.12+ supports italic on/off)
+# if srt contains any utf-8 chars: open file in notepad and save unicode file
+# open srt in tsMuxerGui, select "Demux", in Subtitle Tab select font size (28 for 720x520, 48 for 1280x720, 72 for 1920x1080)
+# save meta file
+# edit meta file and fix video's dimensions
+# run 'tsMuxeR <meta file> <outdir>'

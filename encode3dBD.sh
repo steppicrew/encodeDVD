@@ -7,14 +7,36 @@ if [ ! -f "$mkv" ]; then
     exit 2
 fi
 
+cropTop="$2"
+cropLeft="$3"
+cropBottom="$4"
+cropRight="$5"
+
 realpath=`realpath "$0"`
 source "`dirname "$realpath"`/functions.sh"
 
-crop="`cropdetect "$mkv"`"
+if [ "$cropTop" ]; then
+    test "$cropLeft" || cropLeft="0"
+    test "$cropBottom" || cropBottom="$cropTop"
+    test "$cropRight" || cropRight="$cropLeft"
+else
+    echo "Detecting crop"
+    crop="`cropdetect "$mkv"`"
 
-#crop="crop=1920:800:0:140"
+    left=`echo "$crop" | perl -ne 'print $1 if /crop=\d+:\d+:(\d+):/'`
+    top=`echo "$crop" | perl -ne 'print $1 if /crop=\d+:\d+:\d+:(\d+)/'`
+
+    if [ "$left" -a "$top" ]; then
+        cropTop="$top"
+        cropLeft="$left"
+        cropBottom="$top"
+        cropRight="$left"
+    fi
+fi
+
 
 tempdir="`dirname "$0"`/tmp/`basename "$mkv" .mkv`"
+tempdir="`echo "$tempdir" | tr " äöüßÄÖÜ" "_"`"
 outdir="`dirname "$0"`/out"
 test -d "$tempdir" || mkdir -p "$tempdir"
 test -d "$outdir"  || mkdir -p "$outdir"
@@ -55,10 +77,14 @@ echo "************** demuxing video"
 test -f "$tempdir/file_muxed" || ( tsMuxeR "$meta" "$tempdir" && touch "$tempdir/file_muxed" )
 
 for file in "$tempdir/"*.mvc; do
-    mvc="$file"
+    test -f "$file" || continue
+    ln "$file" "$tempdir/in.mvc"
+    mvc="$tempdir/in.mvc"
 done
 for file in "$tempdir/"*.264; do
-    left="$file"
+    test -f "$file" || continue
+    ln "$file" "$tempdir/in.264"
+    left="$tempdir/in.264"
 done
 
 if [ ! -r "$mvc" -o ! -r "$left" ]; then
@@ -100,7 +126,7 @@ EOT
 outfile="$outdir/`basename "$mkv"`"
 
 filter=( )
-test "$crop" && filter=( "${filter[@]}" "$crop" )
+#test "$crop" && filter=( "${filter[@]}" "$crop" )
 
 test "${filter[*]}" && filter=( '-vf' "${filter[@]}" )
 
