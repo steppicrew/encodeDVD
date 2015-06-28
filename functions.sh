@@ -1,8 +1,9 @@
 
+export LANG="C"
 
 function cropdetect {
     local file="$1"
-    local length=`mkvinfo "$file" | perl -ne 'if (/Dauer:\s+([\d\.]+)/) { print int($1 * $_ / 10) . " " for (2..8); }'`
+    local length=`mkvinfo "$file" | perl -ne 'if (/Duration:\s+([\d\.]+)/) { print int($1 * $_ / 10) . " " for (2..8); }'`
     local start
     for start in $length; do
         ffmpeg -ss $start -i "$file" -t 1 -vf cropdetect -f null - 2>&1
@@ -38,6 +39,24 @@ function cropdetect {
         }
 
         print "crop=$width:$height:$left:$top" if $width && $height;
+    '
+}
+
+function audiodetect {
+    local file="$1"
+    # Convert AAC audio to AC3, copy all othe audio codecs
+    mkvinfo "$file" | perl -e '
+        use strict;
+        use warnings;
+        my $trackNo= 0;
+        my @result= ();
+        while (<>) {
+            next unless /\+ Codec ID\: A_(\w+)/;
+
+            push @result, ("-c:a:$trackNo " . ($1 eq "AAC" ? "ac3" : "copy"));
+            $trackNo++;
+        }
+        print join " ", @result;
     '
 }
 
@@ -103,6 +122,8 @@ function simpleEncode {
     done
     videoOptions=( "${newOptions[@]}" )
 
+    audioOptions=( `audiodetect "$inName"` )
+
     # if there is no crf options, add -crf 20
     test "$crfFound" -eq 0 && videoOptions=( "${videoOptions[@]}" '-crf' '20' )
 
@@ -128,11 +149,12 @@ function simpleEncode {
     fi
 
     cmd=(
-        ffmpeg -i "$inName" -map 0 -c:v libx264
+        ffmpeg -i "$inName" -map 0 -c copy -c:v libx264
         "${videoOptions[@]}"
-        -c:a copy -c:s copy -c:d copy -c:t copy
+        "${audioOptions[@]}"
         "$outName"
     )
+#        -c:s copy -c:d copy -c:t copy
 
     echo "Running in 10s ${cmd[@]}"
     sleep 10s
