@@ -1,5 +1,5 @@
 
-export LANG="C"
+export LANG="en_US.UTF-8"
 
 function cropdetect {
     local file="$1"
@@ -53,10 +53,10 @@ function audiodetect {
         while (<>) {
             next unless /\+ Codec ID\: A_(\w+)/;
 
-            push @result, ("-c:a:$trackNo " . ($1 eq "AAC" ? "ac3" : "copy"));
+            push @result, "-c:a:$trackNo ac3" if $1 eq "AAC";
             $trackNo++;
         }
-        print join " ", @result;
+        print join(" ", @result);
     '
 }
 

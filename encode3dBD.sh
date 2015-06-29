@@ -78,13 +78,13 @@ test -f "$tempdir/file_muxed" || ( tsMuxeR "$meta" "$tempdir" && touch "$tempdir
 
 for file in "$tempdir/"*.mvc; do
     test -f "$file" || continue
-    ln "$file" "$tempdir/in.mvc"
     mvc="$tempdir/in.mvc"
+    ln "$file" "$mvc"
 done
 for file in "$tempdir/"*.264; do
     test -f "$file" || continue
-    ln "$file" "$tempdir/in.264"
     left="$tempdir/in.264"
+    ln "$file" "$left"
 done
 
 if [ ! -r "$mvc" -o ! -r "$left" ]; then
@@ -100,9 +100,9 @@ frames=`mkvinfo "$mkv" | perl -e '
     my $fps= 0;
     my $type= "";
     while ( <> ) {
-        $length= $1 if /Dauer: ([\d\.]+)s/;
-        $type= $1 if /Spurtyp: (\w+)/;
-        $fps= $1 if $type eq "video" && /Standarddauer: [\d\.]+ms \(([\d\.]+) Bilder/;
+        $length= $1 if /Duration: ([\d\.]+)s/;
+        $type= $1 if /Track type: (\w+)/;
+        $fps= $1 if $type eq "video" && /Default duration: [\d\.]+ms \(([\d\.]+) frames/;
     }
     print int($length * $fps);
 '`
@@ -137,18 +137,18 @@ ffmpegCmd=(
     "${filter[@]}"
     -preset medium -tune film
     -b-pyramid normal -partitions p8x8,b8x8,i4x4
-    "$outfile"
+    "$outfile.3d.mkv"
 )
 wineCmd=( wine avs2yuv "$avs" - )
 
 "${wineCmd[@]}" | "${ffmpegCmd[@]}"
 
-exit
-
 ffmpegCmd=(
-    ffmpeg -f yuv4mpegpipe -i "$outfile.mkv" -i "$mkv" -map 0:v -map 1 -map -1:v
-    -c:v copy -c:a copy -c:s copy -c:d copy -c:t copy
+    ffmpeg -i "$outfile.3d.mkv" -i "$mkv" -map 0:v -map 1 -map -1:v
+    -c copy
     "$outfile"
 )
+
+"${ffmpegCmd[@]}"
 
 cleanFile "$outfile"

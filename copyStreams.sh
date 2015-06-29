@@ -9,7 +9,7 @@ fi
 
 test "$outfile" || outfile="`dirname "$1"`/`basename "$1" ".mkv"`2.mkv"
 
-ffmpeg -i "$infile" -map 0 -vcodec copy -acodec copy -scodec copy "$outfile"
+ffmpeg -i "$infile" -map 0 -c copy "$outfile"
 
 # swap audio channels
 # ffmpeg -i "$infile" -map 0:0 -map 0:2 -map 0:1 -map 0:3 -vcodec copy -acodec copy -scodec copy "$outfile"

@@ -6,11 +6,20 @@ source "`dirname "$realpath"`/functions.sh"
 inFile="$1"
 outFile=".out/`basename "$1"`"
 
-audioOptions=( `audiodetect "$1"` )
+audioOptions=( `audiodetect "$inFile"` )
 
 test -d ".out" || mkdir ".out"
 
-ffmpeg -i "$inFile" -map 0 -c:v copy "${audioOptions[@]}" -c:s copy -c:d copy -c:t copy "$outFile"
+ffmpegCmd=(
+    ffmpeg -i "$inFile" -map 0 -c copy
+    "${audioOptions[@]}"
+    "$outFile"
+)
+
+echo "Running in 10s: ${ffmpegCmd[@]}" && sleep 10
+
+"${ffmpegCmd[@]}"
+
 cleanFile "$outFile"
 
 
