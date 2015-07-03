@@ -4,22 +4,25 @@ realpath=`realpath "$0"`
 source "`dirname "$realpath"`/functions.sh"
 
 inFile="$1"
-outFile=".out/`basename "$1"`"
+outFile="$inFile"
 
 audioOptions=( `audiodetect "$inFile"` )
 
-test -d ".out" || mkdir ".out"
+if test "$audioOptions"; then
+    outFile=".out/`basename "$inFile"`"
+    test -d ".out" || mkdir ".out"
 
-ffmpegCmd=(
-    ffmpeg -i "$inFile" -map 0 -c copy
-    "${audioOptions[@]}"
-    "$outFile"
-)
+    ffmpegCmd=(
+        ffmpeg -i "$inFile" -map 0 -c copy
+        "${audioOptions[@]}"
+        "$outFile"
+    )
 
-echo "Running in 10s: ${ffmpegCmd[@]}" && sleep 10
+    echo "Running in 10s: ${ffmpegCmd[@]}" && sleep 10
 
-"${ffmpegCmd[@]}"
+    "${ffmpegCmd[@]}"
 
-cleanFile "$outFile"
+    cleanFile "$outFile"
+fi
 
 
