@@ -26,9 +26,9 @@ function cropdetect {
         my $height= $heightTop[1][0];
         my $top=    $heightTop[1][1];
 
-        # check for lefts/tops that are smaller by more than 4 pixel from found left/top
-        my @lefts= grep { $left - $_ > 4 } map { $_->[1] } @widthLeft;
-        my @tops=  grep { $top  - $_ > 4 } map { $_->[1] } @heightTop;
+        # check for lefts/tops that are smaller by more than 4 pixel from found left/top (do not check last 3 values)
+        my @lefts= grep { $left - $_ > 4 } map { $_->[1] } (splice @widthLeft, -3);
+        my @tops=  grep { $top  - $_ > 4 } map { $_->[1] } (splice @heightTop, -3);
 
         # if any was found, return an invalid value and exit
         if ( @lefts || @tops ) {
@@ -44,7 +44,8 @@ function cropdetect {
 
 function audiodetect {
     local file="$1"
-    # Convert AAC audio to AC3, copy all othe audio codecs
+
+    # Convert AAC audio to AC3, returns "-c:a:[track number] ac3" for every AAC track
     mkvinfo "$file" | perl -e '
         use strict;
         use warnings;
