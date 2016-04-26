@@ -1,5 +1,5 @@
 
-export LANG="en_US.UTF-8"
+export LANG="C"
 
 function cropdetect {
     local file="$1"
