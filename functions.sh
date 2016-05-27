@@ -3,7 +3,14 @@ export LANG="C"
 
 function cropdetect {
     local file="$1"
-    local length=`mkvinfo "$file" | perl -ne 'if (/Duration:\s+([\d\.]+)/) { print int($1 * $_ / 10) . " " for (2..8); }'`
+    local length=`ffmpeg -i "$file" -c:none /dev/null 2>&1 | perl -ne '
+        use strict;
+        use warnings;
+        if (/Duration:\s+(\d+):(\d+):(\d+\.\d+)/) {
+            my $d= $1 * 3_600 + $2 * 60 + $3;
+            print int($d * $_ / 10) . " " for (2..8);
+        }
+    '`
     local start
     for start in $length; do
         ffmpeg -ss $start -i "$file" -t 1 -vf cropdetect -f null - 2>&1
@@ -45,17 +52,15 @@ function cropdetect {
 function audiodetect {
     local file="$1"
 
-    # Convert AAC audio to AC3, returns "-c:a:[track number] ac3" for every AAC track
-    mkvinfo "$file" | perl -e '
+    # Convert AAC audio to AC3, returns "-c:[track number] ac3" for every AAC track
+    ffmpeg -i "$file" -c:none /dev/null 2>&1 | perl -e '
         use strict;
         use warnings;
-        my $trackNo= 0;
         my @result= ();
         while (<>) {
-            next unless /\+ Codec ID\: A_(\w+)/;
-
-            push @result, "-c:a:$trackNo ac3" if $1 eq "AAC";
-            $trackNo++;
+            next unless /^\s*Stream #0:(\d+)(?:\[0x\w+\])?\(\w+\): Audio:\s+(\w+)/;
+            my ($stream, $format)= ($1, $2);
+            push @result, "-c:$stream ac3" if $format=~ /^(?:aac|ms|mp2)$/;
         }
         print join(" ", @result);
     '
@@ -84,7 +89,7 @@ function simpleEncode {
     )
 
     outDir="`dirname "$inName"`/.out"
-    outName="$outDir/`basename "$inName"`"
+    outName="$outDir/`basename "$inName" ".mkv"`.mkv"
     test -d "$outDir" || mkdir -p "$outDir"
 
     filter=( )
@@ -150,7 +155,10 @@ function simpleEncode {
     fi
 
     cmd=(
-        ffmpeg -i "$inName" -map 0 -c copy -c:v libx264
+        ffmpeg -i "$inName"
+        -f matroska
+        -map 0 -map -0:d
+        -c copy -c:V libx264
         "${videoOptions[@]}"
         "${audioOptions[@]}"
         "$outName"
