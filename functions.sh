@@ -58,7 +58,7 @@ function audiodetect {
         use warnings;
         my @result= ();
         while (<>) {
-            next unless /^\s*Stream #0:(\d+)(?:\[0x\w+\])?\(\w+\): Audio:\s+(\w+)/;
+            next unless /^\s*Stream #0:(\d+)(?:\[0x\w+\])?(?:\(\w+\))?: Audio:\s+(\w+)/;
             my ($stream, $format)= ($1, $2);
             push @result, "-c:$stream ac3" if $format=~ /^(?:aac|ms|mp2)$/;
         }
