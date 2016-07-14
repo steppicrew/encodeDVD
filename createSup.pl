@@ -144,7 +144,7 @@ sub buildPng {
 
 my $ffmpegOut= `ffmpeg -i "$movieFile" -c:none /dev/null 2>&1`;
 
-die 'Could not get movie\'s dimension' unless $ffmpegOut=~ /Stream #\d:\d\b.+ Video:.+ (\d+)x(\d+) .+, (\d+\.?\d*) fps/;
+die 'Could not get movie\'s dimension' unless $ffmpegOut=~ /Stream #\d:\d\b.+ Video:.+ (\d+)x(\d+)\b.+, (\d+\.?\d*) fps/;
 
 my ( $xSize, $ySize, $fps )= ( $1, $2, $3 );
 
@@ -190,7 +190,7 @@ else {
     $fontSize= 9 unless $fontSize;
 }
 
-print "Assuming screen dimensions ${xSize}x${ySize} and font size $fontSize\n";
+print "Assuming screen dimensions ${xSize}x${ySize} \@$fps and font size $fontSize\n";
 
 # $stroke= $strokeWidth ? $shadowColor : 'none';
 
@@ -215,6 +215,8 @@ my @caption= ();
 my ( $start, $end );
 
 my @xml= ();
+
+$fps= 24;
 
 foreach my $line (@lines) {
     if ( $line && !$state ) {
