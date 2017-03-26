@@ -9,11 +9,11 @@ outFile="$inFile"
 audioOptions=( `audiodetect "$inFile"` )
 
 if test "$audioOptions"; then
-    outFile=".out/`basename "$inFile"`"
+    outFile=".out/`basename "$inFile" ".mkv"`.mkv"
     test -d ".out" || mkdir ".out"
 
     ffmpegCmd=(
-        ffmpeg -i "$inFile" -map 0 -c copy
+        ffmpeg -i "$inFile" -f matroska -map 0 -c copy
         "${audioOptions[@]}"
         "$outFile"
     )

@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use File::Temp qw/ tempdir /;
 
-my $debug= 1;
+my $debug= 0;
 
 my ( $fontSize, $srtFile, $movieFile );
 my ( $langCode, $fontColor, $shadowColor )= ( 'eng', 'white', 'black' );
@@ -194,10 +194,10 @@ print "Assuming screen dimensions ${xSize}x${ySize} \@$fps and font size $fontSi
 
 # $stroke= $strokeWidth ? $shadowColor : 'none';
 
-my $dir= tempdir( 'createSub-XXXXX', TMPDIR => 1, CLEANUP => $debug );
+my $dir= tempdir( 'createSub-XXXXX', TMPDIR => 1, CLEANUP => !$debug );
 
 open my $fh, '<', $srtFile;
-chomp(my @lines = <$fh>);
+my @lines = map { s/\r?\n//; $_ } <$fh>;
 close $fh;
 
 my $outFile= $srtFile;
