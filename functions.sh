@@ -49,6 +49,28 @@ function cropdetect {
     '
 }
 
+function widthHeight {
+    local file="$1"
+    mkvinfo --ui-language en_US "$file" | perl -e '
+        use warnings;
+        use strict;
+
+        my ($id, $width, $height, $fps);
+
+        while (<>) {
+            chomp;
+            ($id, $width, $height, $fps)= () if /^\| \+ Track\b/;
+            $id= $1 if /^\|  \+ Track number: \d+ \(track ID for mkvmerge \& mkvextract: (\d+)\)/;
+            $width= $1 if /\|   \+ Pixel width: (\d+)/;
+            $height= $1 if /\|   \+ Pixel height: (\d+)/;
+            $fps= $1 if /\((\d+(?:\.\d+)) frames\/fields/;
+            next unless defined $id && $width && $height && $fps;
+            print "$id $width $height $fps\n";
+            last;
+        }
+    '
+}
+
 function audiodetect {
     local file="$1"
 
@@ -60,7 +82,7 @@ function audiodetect {
         while (<>) {
             next unless /^\s*Stream #0:(\d+)(?:\[0x\w+\])?(?:\(\w+\))?: Audio:\s+(\w+)/;
             my ($stream, $format)= ($1, $2);
-            push @result, "-c:$stream ac3" if $format=~ /^(?:aac|ms|mp2|pcm_\w+|)$/;
+            push @result, "-c:$stream ac3" if $format=~ /^(?:aac|ms|mp2|pcm_\w+|opus)$/;
         }
         print join(" ", @result);
     '
