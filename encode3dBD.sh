@@ -3,14 +3,13 @@
 mkv="$1"
 
 if [ ! -f "$mkv" ]; then
-    echo "Usage: $0 <mkv file with mvc track> [<cropTop> [<cropLeft> [<cropBottom> [<cropRight>]]]]"
+    echo "Usage: $0 <mkv file with mvc track> [<cropTop> [<cropBottom]]"
+    echo "Example (1920x1080->1920x800): $0 <mkv file with mvc track> 140"
     exit 2
 fi
 
 cropTop="$2"
-cropLeft="$3"
-cropBottom="$4"
-cropRight="$5"
+cropBottom="$3"
 
 realpath=`realpath "$0"`
 source "`dirname "$realpath"`/functions.sh"
@@ -22,15 +21,13 @@ streamHeight="${widthHeight[2]}"
 streamFps="${widthHeight[3]}"
 
 if [ "$cropTop" ]; then
-    test "$cropLeft" || cropLeft="0"
     test "$cropBottom" || cropBottom="$cropTop"
-    test "$cropRight" || cropRight="$cropLeft"
+    crop="crop=$streamWidth:$(( $streamHeight - $cropTop - $cropBottom)):0:$cropTop"
 else
     echo "Detecting crop"
     # Only crop horizontally
     crop="`cropdetect "$mkv" | perl -ne 's/^crop=\d+:(\d+):\d+:(\d+)/crop='$streamWidth':$1:0:$2/; print;'`"
 fi
-
 
 outdir="`dirname "$mkv"`/.out"
 test -d "$outdir"  || mkdir -p "$outdir"
@@ -42,9 +39,8 @@ function cleanup {
 
 trap cleanup EXIT
 
-h264File="$outdir/`basename "$mkv" '.mkv'`.264"
+h264File="$outdir/tmp.`basename "$mkv" '.mkv' | tr -c "[:alnum:].-\n" "_"`.264"
 #h264File="`echo "$h264File" | tr " äöüßÄÖÜ" "_"`"
-h264File="`echo "$h264File" | tr -c "[:alnum:].-" "_"`"
 outfile="$outdir/`basename "$mkv"`"
 out3d="$outdir/tmp.3d.`basename "$mkv"`"
 
