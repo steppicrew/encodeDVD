@@ -32,10 +32,7 @@ else
 fi
 
 
-tempdir="`dirname "$0"`/tmp/`basename "$mkv" .mkv`"
-tempdir="`echo "$tempdir" | tr " äöüßÄÖÜ" "_"`"
-outdir="`dirname "$0"`/out"
-test -d "$tempdir" || mkdir -p "$tempdir"
+outdir="`dirname "$mkv"`/.out"
 test -d "$outdir"  || mkdir -p "$outdir"
 
 function cleanup {
@@ -45,8 +42,11 @@ function cleanup {
 
 trap cleanup EXIT
 
-h264File="$tempdir/movie.264"
+h264File="$outdir/`basename "$mkv" '.mkv'`.264"
+#h264File="`echo "$h264File" | tr " äöüßÄÖÜ" "_"`"
+h264File="`echo "$h264File" | tr -c "[:alnum:].-" "_"`"
 outfile="$outdir/`basename "$mkv"`"
+out3d="$outdir/tmp.3d.`basename "$mkv"`"
 
 test -s "$h264File" || mkvextract tracks "$mkv" "$streamId:$h264File"
 
@@ -63,22 +63,31 @@ ffmpegCmd=(
     "${filter[@]}"
     -preset medium -tune film
     -b-pyramid normal -partitions p8x8,b8x8,i4x4
-    "$outfile.3d.mkv"
+    "$out3d"
 )
 wineCmd=( wine FRIMDecode -i:mvc "$h264File" -o - -sbs )
 
-#echo "${wineCmd[@]}"
-#echo "${ffmpegCmd[@]}"
-#exit
-
 "${wineCmd[@]}" | "${ffmpegCmd[@]}"
 
+newLength=`du -m "$out3d" | cut -f 1`
+
+# only remove h264 file if result is larger than 100k
+test "$newLength" -gt 20 && rm "$h264File" || exit 1
+
 ffmpegCmd=(
-    ffmpeg -i "$outfile.3d.mkv" -i "$mkv" -map 0:v -map 1 -map -1:v
+    ffmpeg -i "$out3d" -i "$mkv" -map 0:v -map 1 -map -1:v
     -c copy
     "$outfile"
 )
 
 "${ffmpegCmd[@]}"
 
+newLength=`du -m "$outfile" | cut -f 1`
+
+# only remove h264 file if result is larger than 100k
+test "$newLength" -gt 20 && rm "$out3d" || exit 1
+
 cleanFile "$outfile"
+
+mkvpropedit --edit track:1 -s stereo-mode=1 "$outfile"
+
