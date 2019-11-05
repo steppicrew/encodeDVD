@@ -1,6 +1,18 @@
 #!/bin/bash
 
 mkv="$1"
+cd "`dirname "$mkv"`"
+workingFile=(`basename "$mkv" | md5sum`)
+ln -s "`basename "$mkv"`" "$workingFile"
+
+function cleanup {
+    echo "Exiting"
+    rm "$workingFile"
+#    test -d "$tempdir" && rm -rf "$tempdir"
+}
+
+trap cleanup EXIT
+
 
 if [ ! -f "$mkv" ]; then
     echo "Usage: $0 <mkv file with mvc track> [<cropTop> [<cropBottom]]"
@@ -14,7 +26,7 @@ cropBottom="$3"
 realpath=`realpath "$0"`
 source "`dirname "$realpath"`/functions.sh"
 
-widthHeight=(`widthHeight "$mkv"`)
+widthHeight=(`widthHeight "$workingFile"`)
 streamId="${widthHeight[0]}"
 streamWidth="${widthHeight[1]}"
 streamHeight="${widthHeight[2]}"
@@ -32,19 +44,13 @@ fi
 outdir="`dirname "$mkv"`/.out"
 test -d "$outdir"  || mkdir -p "$outdir"
 
-function cleanup {
-    echo "Exiting"
-#    test -d "$tempdir" && rm -rf "$tempdir"
-}
-
-trap cleanup EXIT
-
-h264File="$outdir/tmp.`basename "$mkv" '.mkv' | tr -c "[:alnum:].-\n" "_"`.264"
+h264File="$outdir/tmp.$workingFile.264"
 #h264File="`echo "$h264File" | tr " äöüßÄÖÜ" "_"`"
 outfile="$outdir/`basename "$mkv"`"
-out3d="$outdir/tmp.3d.`basename "$mkv"`"
+out3d="$outdir/tmp.3d.$workingFile.mkv"
 
-test -s "$h264File" || mkvextract tracks "$mkv" "$streamId:$h264File"
+echo mkvextract tracks "$workingFile" "$streamId:$h264File"
+test -s "$h264File" || mkvextract tracks "$workingFile" "$streamId:$h264File"
 
 filter="scale=$streamWidth:$streamHeight"
 test "$crop" && filter="$filter,$crop"
@@ -67,7 +73,7 @@ wineCmd=( wine FRIMDecode -i:mvc "$h264File" -o - -sbs )
 
 newLength=`du -m "$out3d" | cut -f 1`
 
-# only remove h264 file if result is larger than 100k
+# only remove h264 file if result is larger than 20m
 test "$newLength" -gt 20 && rm "$h264File" || exit 1
 
 ffmpegCmd=(
@@ -80,7 +86,7 @@ ffmpegCmd=(
 
 newLength=`du -m "$outfile" | cut -f 1`
 
-# only remove h264 file if result is larger than 100k
+# only remove h264 file if result is larger than 20m
 test "$newLength" -gt 20 && rm "$out3d" || exit 1
 
 cleanFile "$outfile"
