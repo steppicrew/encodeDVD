@@ -3,7 +3,7 @@ export LANG="C"
 
 function cropdetect {
     local file="$1"
-    local length=`ffmpeg -i "$file" -c:none /dev/null 2>&1 | perl -ne '
+    local length=`ffmpeg -i "file:$file" -c:none /dev/null 2>&1 | perl -ne '
         use strict;
         use warnings;
         if (/Duration:\s+(\d+):(\d+):(\d+\.\d+)/) {
@@ -13,7 +13,7 @@ function cropdetect {
     '`
     local start
     for start in $length; do
-        ffmpeg -ss $start -i "$file" -t 1 -vf cropdetect -f null - 2>&1
+        ffmpeg -ss $start -i "file:$file" -t 1 -vf cropdetect -f null - 2>&1
     done | perl -e '
         use strict;
         my @widthLeft= ();
@@ -75,7 +75,7 @@ function audiodetect {
     local file="$1"
 
     # Convert AAC audio to AC3, returns "-c:[track number] ac3" for every AAC track
-    ffmpeg -i "$file" -c:none /dev/null 2>&1 | perl -e '
+    ffmpeg -i "file:$file" -c:none /dev/null 2>&1 | perl -e '
         use strict;
         use warnings;
         my @result= ();
@@ -101,6 +101,11 @@ function cleanFile {
 function simpleEncode {
     inName="$1"
 
+    if [ ! -f "$inName" ]; then
+        echo "Input file '$inName' does not exist."
+        exit
+    fi
+
     shift
     videoOptions=(
         "-preset" "medium"
@@ -117,7 +122,7 @@ function simpleEncode {
     filter=( )
 
     # detecting interlace
-    interlaced=`ffmpeg -filter:v idet -frames:v 1000 -an -f rawvideo -y /dev/null -i "$inName" 2>&1 | perl -e '
+    interlaced=`ffmpeg -filter:v idet -frames:v 1000 -an -f rawvideo -y /dev/null -i "file:$inName" 2>&1 | perl -e '
         use strict;
         my $inter= 0;
         my $progress= 0;
@@ -177,13 +182,13 @@ function simpleEncode {
     fi
 
     cmd=(
-        ffmpeg -i "$inName"
+        ffmpeg -i "file:$inName"
         -f matroska
-        -map 0 -map -0:d
+        -map 0 -map -0:v:1?
         -c copy -c:V libx264
         "${videoOptions[@]}"
         "${audioOptions[@]}"
-        "$outName"
+        "file:$outName"
     )
 #        -c:s copy -c:d copy -c:t copy
 

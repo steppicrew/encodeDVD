@@ -13,9 +13,9 @@ if test "$audioOptions"; then
     test -d ".out" || mkdir ".out"
 
     ffmpegCmd=(
-        ffmpeg -i "$inFile" -f matroska -map 0 -c copy
+        ffmpeg -i "file:$inFile" -f matroska -map 0 -c copy
         "${audioOptions[@]}"
-        "$outFile"
+        "file:$outFile"
     )
 
     echo "Running in 10s: ${ffmpegCmd[@]}" && sleep 10

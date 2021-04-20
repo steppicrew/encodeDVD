@@ -142,7 +142,7 @@ sub buildPng {
     die "Creating image '$file' filed";
 }
 
-my $ffmpegOut= `ffmpeg -i "$movieFile" -c:none /dev/null 2>&1`;
+my $ffmpegOut= `ffmpeg -i "file:$movieFile" -c:none /dev/null 2>&1`;
 
 die 'Could not get movie\'s dimension' unless $ffmpegOut=~ /Stream #\d:\d\b.+ Video:.+ (\d+)x(\d+)\b.+, (\d+\.?\d*) fps/;
 

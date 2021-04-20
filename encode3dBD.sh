@@ -77,9 +77,9 @@ newLength=`du -m "$out3d" | cut -f 1`
 test "$newLength" -gt 20 && rm "$h264File" || exit 1
 
 ffmpegCmd=(
-    ffmpeg -i "$out3d" -i "$mkv" -map 0:v -map 1 -map -1:v
+    ffmpeg -i "file:$out3d" -i "$mkv" -map 0:v -map 1 -map -1:v
     -c copy
-    "$outfile"
+    "file:$outfile"
 )
 
 "${ffmpegCmd[@]}"
