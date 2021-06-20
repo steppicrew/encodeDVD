@@ -13,7 +13,7 @@ function cropdetect {
     '`
     local start
     for start in $length; do
-        ffmpeg -ss $start -i "file:$file" -t 1 -vf cropdetect -f null - 2>&1
+        ffmpeg -ss $start -i "file:$file" -t 1 -filter:V cropdetect -f null - 2>&1
     done | perl -e '
         use strict;
         my @widthLeft= ();
@@ -178,13 +178,13 @@ function simpleEncode {
 
     # append filter if needed
     if [ "$filter" ]; then
-        videoOptions=( "${videoOptions[@]}" '-vf' "$filter" )
+        videoOptions=( "${videoOptions[@]}" '-filter:V' "$filter" )
     fi
 
     cmd=(
         ffmpeg -i "file:$inName"
         -f matroska
-        -map 0 -map -0:v:1?
+#        -map 0 -map -0:v:1?
         -c copy -c:V libx264
         "${videoOptions[@]}"
         "${audioOptions[@]}"
