@@ -178,14 +178,13 @@ function simpleEncode {
 
     # append filter if needed
     if [ "$filter" ]; then
-        videoOptions=( "${videoOptions[@]}" '-filter:V' "$filter" )
+        videoOptions=( "${videoOptions[@]}" '-filter:V:0' "$filter" )
     fi
 
     cmd=(
         ffmpeg -i "file:$inName"
         -f matroska
-#        -map 0 -map -0:v:1?
-        -c copy -c:V libx264
+        -c copy -c:V:0 libx264
         "${videoOptions[@]}"
         "${audioOptions[@]}"
         "file:$outName"
