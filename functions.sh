@@ -49,6 +49,54 @@ function cropdetect {
     '
 }
 
+# extracts attachments from infile and add them to outfile
+function copyAttachments {
+    local infile="$1"
+    local outfile="$2"
+
+    perl -e '
+        use strict;
+        use warnings;
+        use JSON qw/ decode_json /;
+        use Data::Dumper;
+        my $inFile= <>;
+        my $outFile= <>;
+        chomp $inFile;
+        chomp $outFile;
+        my $newOutFile= "$outFile.attachments.mkv";
+        my $qInFile= $inFile;
+        $qInFile=~ s/([\\"\$])/\\$1/g;
+        my $prefix= $$;
+        my $json= `mkvmerge --identify "$inFile" --identification-format json`;
+        my $data= decode_json($json);
+
+        exit unless $data->{attachments} && @{$data->{attachments}};
+
+        my @cmdExtract= ( "mkvextract", $inFile, "attachments" );
+        my @attachments= ();
+        my @parameters= ();
+        my @files= ();
+        my $id= 0;
+        foreach my $attachment (@{$data->{attachments}}) {
+            my $filename= "$prefix-$id";
+            push @cmdExtract, $attachment->{id} . ":" . $filename;
+            push @attachments, "-attach", $filename;
+            push @parameters, "-metadata:s:t:$id", "mimetype=" . $attachment->{content_type}, "-metadata:s:t:$id", "filename=" . $attachment->{file_name};
+            push @files, $filename;
+            $id++;
+        }
+        system @cmdExtract;
+        system "ffmpeg", "-i", $outFile, "-map", "0", @attachments, "-c", "copy", @parameters, $newOutFile;
+        my $oldSize= -s $outFile;
+        my $newSize= -s $newOutFile;
+        $oldSize < $newSize ? system("mv", $newOutFile, $outFile) : system("rm", $newOutFile);
+        unlink @files;
+    ' << EOT
+$infile
+$outfile
+EOT
+}
+
 function widthHeight {
     local file="$1"
     mkvinfo --ui-language en_US "$file" | perl -e '
@@ -194,6 +242,7 @@ function simpleEncode {
     echo "Running in 10s ${cmd[@]}"
     sleep 10s
     "${cmd[@]}"
+    copyAttachments "$inName" "$outName"
 
     cleanFile "$outName"
 }

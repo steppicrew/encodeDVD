@@ -91,6 +91,7 @@ newLength=`du -m "$outfile" | cut -f 1`
 # only remove h264 file if result is larger than 20m
 test "$newLength" -gt 20 && rm "$out3d" || exit 1
 
+copyAttachments "$mkv" "$outfile"
 cleanFile "$outfile"
 
 mkvpropedit --edit track:1 -s stereo-mode=1 "$outfile"
