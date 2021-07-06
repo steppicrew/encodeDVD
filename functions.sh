@@ -232,7 +232,8 @@ function simpleEncode {
     cmd=(
         ffmpeg -i "file:$inName"
         -f matroska
-        -c copy -c:V:0 libx264
+        -map 0:V:0 -map 0:a -map 0:s? -map 0:d? -map 0:t?
+        -c:v libx264 -c:a copy -c:s copy -c:d copy -c:t copy
         "${videoOptions[@]}"
         "${audioOptions[@]}"
         "file:$outName"
