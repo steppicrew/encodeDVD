@@ -236,7 +236,7 @@ foreach my $line (@lines) {
         }
 
         my $caption= join '\n', @caption;
-        my $pngFile= sprintf("%s_%04d.png", $baseFileName, ++$a);
+        my $pngFile= sprintf("%s_%05d.png", $baseFileName, ++$a);
         my ( $width, $height )= buildPng $caption, $dir . '/' . $pngFile;
 
         $maxWidth= $width if $width > $maxWidth;
