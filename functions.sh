@@ -16,6 +16,7 @@ function cropdetect {
         ffmpeg -ss $start -i "file:$file" -t 1 -filter:V cropdetect -f null - 2>&1
     done | perl -e '
         use strict;
+        my $maxWidth = 1920;
         my @widthLeft= ();
         my @heightTop= ();
         while (<>) {
@@ -45,7 +46,10 @@ function cropdetect {
             exit;
         }
 
+
         print "crop=$width:$height:$left:$top" if $width && $height;
+        print "," if $width && $height && $width > $maxWidth;
+        print "scale=$maxWidth:-2" if $width > $maxWidth;
     '
 }
 
@@ -203,7 +207,7 @@ function simpleEncode {
     done
     videoOptions=( "${newOptions[@]}" )
 
-    audioOptions=( `audiodetect "$inName"` )
+#    audioOptions=( `audiodetect "$inName"` )
 
     # if there is no crf options, add -crf 20
     test "$crfFound" -eq 0 && videoOptions=( "${videoOptions[@]}" '-crf' '20' )

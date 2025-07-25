@@ -283,5 +283,5 @@ print $fn "</Events>\n";
 print $fn "</BDN>\n";
 close $fn;
 
-system 'bdsup2sub', $xmlFile, '-o', $outFile;
+system 'bdsup2subpp', $xmlFile, '-o', $outFile;
 
