@@ -9,8 +9,8 @@ A set of Bash + Perl wrapper scripts around ffmpeg / MKVToolNix for re-encoding 
 ## Running
 
 ```bash
-./encodeBD.sh <file.mkv> [extra ffmpeg options]   # Blu-ray, -crf 20
-./encodeDvd.sh <file.mkv> [extra ffmpeg options]  # DVD, -crf 25
+./encodeBD.sh <file.mkv> [extra ffmpeg options]   # Blu-ray, -crf 25
+./encodeDvd.sh <file.mkv> [extra ffmpeg options]  # DVD, -crf 20
 ./encodeBD-denoise.sh <file.mkv>                  # encodeBD.sh + hqdn3d denoise filter
 ./encode3dBD.sh <file.mkv> [cropTop [cropBottom]] # MVC 3D → half-SBS
 ./convertAudio.sh <file.mkv>                      # only transcode non-AC3 audio, copy everything else
@@ -25,6 +25,10 @@ Every encode prints the assembled ffmpeg command and waits up to 10s (Enter star
 ## Architecture
 
 `functions.sh` is the shared library; every encode script is a thin wrapper that sources it via `realpath "$0"` and calls into it. Adding a new encode profile means adding a 4-line wrapper, not duplicating pipeline logic.
+
+The wrappers differ only in their CRF, and the values look counter-intuitive: `encodeBD.sh` uses `-crf 25` while `encodeDvd.sh` uses `-crf 20`. That is how they have been since 2015 (`1641f48`) — do not "correct" them.
+
+Note the argument order: a wrapper calls `simpleEncode "$@" -crf N`, so its own `-crf` lands *after* anything you pass, and x264 honours the last one. A `-crf` given on the command line is therefore silently overridden by the wrapper's. Call `simpleEncode` directly to choose a different CRF.
 
 `simpleEncode` (functions.sh) is the whole pipeline for 2D content:
 
