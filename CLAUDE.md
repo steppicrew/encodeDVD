@@ -11,7 +11,7 @@ A set of Bash + Perl wrapper scripts around ffmpeg / MKVToolNix for re-encoding 
 ```bash
 ./encodeBD.sh <file.mkv> [extra ffmpeg options]   # Blu-ray, -crf 25
 ./encodeDvd.sh <file.mkv> [extra ffmpeg options]  # DVD, -crf 20
-./encodeBD-denoise.sh <file.mkv>                  # encodeBD.sh + hqdn3d denoise filter
+./encodeBD-denoise.sh <file.mkv>                  # encodeBD.sh + hqdn3d, for grainy sources
 ./encode3dBD.sh <file.mkv> [cropTop [cropBottom]] # MVC 3D → half-SBS
 ./convertAudio.sh <file.mkv>                      # only transcode non-AC3 audio, copy everything else
 ./createSup.pl [-l <lang>] [-f <size>] <file.srt> <movie.mkv>  # SRT → BD PGS .sup
@@ -29,6 +29,10 @@ Every encode prints the assembled ffmpeg command and waits up to 10s (Enter star
 The wrappers differ only in their CRF, and the values look counter-intuitive: `encodeBD.sh` uses `-crf 25` while `encodeDvd.sh` uses `-crf 20`. That is how they have been since 2015 (`1641f48`) — do not "correct" them.
 
 Note the argument order: a wrapper calls `simpleEncode "$@" -crf N`, so its own `-crf` lands *after* anything you pass, and x264 honours the last one. A `-crf` given on the command line is therefore silently overridden by the wrapper's. Call `simpleEncode` directly to choose a different CRF.
+
+Wrappers resolve their own directory as ``realpath=`realpath "$0"` `` then ``dirname "$realpath"`` — always in that order, and always quoted. The scripts are invoked through symlinks in `~/dvd/`, where the inverted form (`realpath $(dirname "$0")`) yields the symlink's directory instead of the real one and the wrapper fails to find its sibling. Filenames here routinely contain spaces and umlauts, so unquoted command substitutions break too.
+
+A wrapper that layers a filter (`encodeBD-denoise.sh`, and `encodeBD-Logo.one.sh` in `~/dvd/`) passes it as a trailing `-vf`. `simpleEncode` extracts that value and *appends* it to the autodetected crop rather than replacing it, so cropping still happens.
 
 `simpleEncode` (functions.sh) is the whole pipeline for 2D content:
 
@@ -59,7 +63,7 @@ Separate from `simpleEncode`. It symlinks the input to an md5-of-basename name (
 
 Because the script `cd`s to the input file's directory early on, invoke it by absolute path — a relative `./encode3dBD.sh` breaks its own `realpath`-based `source` of `functions.sh`.
 
-`encode3dBD.sh.save` is an untracked older variant with 4-sided cropping and a different temp/out directory layout — reference only, not wired into anything.
+An older variant of this script built the half-SBS stream with tsMuxeR + AviSynth/avs2yuv instead of FRIMDecode; it was replaced in `aefce2d` ("changed 3D encoding due to wine update") and is recoverable from history if the Wine setup ever changes again.
 
 ### Subtitles (`createSup.pl`)
 
