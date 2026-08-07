@@ -270,9 +270,10 @@ function simpleEncode {
         print "1" if $inter > $progress;
     '`
 
-    # extract filter and look for some options (-crf)
+    # extract filter and look for some options (-crf, -delogo)
     local crfFound=0
     local filter=""
+    local delogo=""
     local newOptions=( )
     local lastOption=""
     local o
@@ -282,14 +283,33 @@ function simpleEncode {
         if [ "$lastOption" = "-vf" ]; then
             filter="$o"
         fi
+        if [ "$lastOption" = "-delogo" ]; then
+            delogo="$o"
+        fi
 
-        # skip '-vf' and filter option
-        if [ "$o" != '-vf' -a "$lastOption" != '-vf' ]; then
+        # skip '-vf'/'-delogo' and their values, they are not ffmpeg options here
+        if [ "$o" != '-vf' -a "$lastOption" != '-vf' \
+          -a "$o" != '-delogo' -a "$lastOption" != '-delogo' ]; then
             newOptions=( "${newOptions[@]}" "$o" )
         fi
         lastOption="$o"
     done
     videoOptions=( "${newOptions[@]}" )
+
+    # -delogo takes "x:y:w:h" in *source* coordinates. It is kept aside until the
+    # whole chain is assembled, because it has to run before the crop: cropping
+    # shifts the frame under it, and it would blur a band of picture instead of
+    # the logo.
+    if [ "$delogo" ]; then
+        if [[ "$delogo" =~ ^[0-9]+:[0-9]+:[0-9]+:[0-9]+$ ]]; then
+            local dx dy dw dh
+            IFS=: read -r dx dy dw dh <<< "$delogo"
+            delogo="delogo=x=$dx:y=$dy:w=$dw:h=$dh"
+        else
+            echo "-delogo expects <x>:<y>:<width>:<height> in source pixels, got '$delogo'." >&2
+            return 1
+        fi
+    fi
 
     # Audio is deliberately left untouched here: audiodetect's AAC/PCM -> AC3
     # conversion is lossy-to-lossy, so run convertAudio.sh separately when wanted.
@@ -318,6 +338,12 @@ function simpleEncode {
     if [ "$interlaced" ]; then
         test "$filter" && filter=",$filter"
         filter="yadif${filter}"
+    fi
+
+    # delogo goes in front of everything: its coordinates are source pixels
+    if [ "$delogo" ]; then
+        test "$filter" && filter=",$filter"
+        filter="${delogo}${filter}"
     fi
 
     # append filter if needed
