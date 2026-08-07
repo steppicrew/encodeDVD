@@ -37,8 +37,17 @@ if [ "$cropTop" ]; then
     crop="crop=$streamWidth:$(( $streamHeight - $cropTop - $cropBottom)):0:$cropTop"
 else
     echo "Detecting crop"
-    # Only crop horizontally
-    crop="`cropdetect "$mkv" | perl -ne 's/^crop=\d+:(\d+):\d+:(\d+)/crop='$streamWidth':$1:0:$2/; print;'`"
+    # capture cropdetect's status separately: piping it into perl would hide it
+    if ! detectedCrop="`cropdetect "$mkv"`"; then
+        echo "Crop detection was ambiguous: the samples do not agree." >&2
+        echo "Candidates (width:height:left:top): $detectedCrop" >&2
+        echo "Pick one and re-run with the top (and optionally bottom) crop, e.g.:" >&2
+        echo "    $0 \"$mkv\" <cropTop> [<cropBottom>]" >&2
+        exit 1
+    fi
+    # Only crop horizontally. Drop any scale= that cropdetect appended for
+    # sources wider than 1920: the encode below sets its own scale filter.
+    crop="`echo "$detectedCrop" | perl -ne 's/,?scale=[^,]*//; s/^crop=\d+:(\d+):\d+:(\d+)/crop='$streamWidth':$1:0:$2/; print;'`"
 fi
 
 outdir="`dirname "$mkv"`/.out"
