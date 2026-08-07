@@ -3,12 +3,14 @@ export LANG="C"
 
 function cropdetect {
     local file="$1"
+    # sample 15 points between 10% and 85% of the running time: the crop is the
+    # union of what is visible, so more samples can only sharpen the result
     local length=`ffmpeg -i "file:$file" -c:none /dev/null 2>&1 | perl -ne '
         use strict;
         use warnings;
         if (/Duration:\s+(\d+):(\d+):(\d+\.\d+)/) {
             my $d= $1 * 3_600 + $2 * 60 + $3;
-            print int($d * $_ / 10) . " " for (2..8);
+            print int($d * $_ / 20) . " " for (2..16);
         }
     '`
     local start
@@ -16,39 +18,108 @@ function cropdetect {
         ffmpeg -ss $start -i "file:$file" -t 1 -filter:V cropdetect -f null - 2>&1
     done | perl -e '
         use strict;
-        my $maxWidth = 1920;
-        my @widthLeft= ();
-        my @heightTop= ();
+        use warnings;
+
+        my $maxWidth     = 1920;
+        my $minArea      = 0.5; # ignore samples smaller than this share of the largest
+        my $minAsymmetry = 16;  # opposite bars closer than this count as symmetric
+
+        my @boxes= ();
+        my ( $frameWidth, $frameHeight );
         while (<>) {
+            # the same stderr carries the probe header, take the frame size from it
+            ( $frameWidth, $frameHeight )= ( $1, $2 )
+                if !$frameWidth && /^\s*Stream #\d+:\d+.*: Video:.*?\D(\d{2,5})x(\d{2,5})\b/;
             next unless /Parsed_cropdetect.+crop=(\d+):(\d+):(\d+):(\d+)/;
-            push @widthLeft, [$1, $3];
-            push @heightTop, [$2, $4];
+            # store as edges: left, top, right, bottom
+            push @boxes, [ $3, $4, $3 + $1, $4 + $2 ];
         }
 
-        # find the greates width with the lowest left (same for height/top)
-        @widthLeft= sort { $b->[0] <=> $a->[0] || $a->[1] <=> $b->[1] } @widthLeft;
-        @heightTop= sort { $b->[0] <=> $a->[0] || $a->[1] <=> $b->[1] } @heightTop;
+        unless ( @boxes ) {
+            print STDERR "cropdetect: no crop candidates found\n";
+            exit 1;
+        }
 
-        my $width=  $widthLeft[0][0];
-        my $left=   $widthLeft[0][1];
-        my $height= $heightTop[1][0];
-        my $top=    $heightTop[1][1];
+        # Drop samples that are a small fraction of the largest box. cropdetect
+        # reports the *visible* area, so a dark scene yields a tiny box that says
+        # nothing about where the black bars are.
+        my $maxArea= 0;
+        for my $b (@boxes) {
+            my $a= ($b->[2] - $b->[0]) * ($b->[3] - $b->[1]);
+            $maxArea= $a if $a > $maxArea;
+        }
+        my @kept= grep { ($_->[2] - $_->[0]) * ($_->[3] - $_->[1]) >= $maxArea * $minArea } @boxes;
+        @kept= @boxes unless @kept;
 
-        # check for lefts/tops that are smaller by more than 4 pixel from found left/top (do not check last 3 values)
-        my @lefts= grep { $left - $_ > 4 } map { $_->[1] } (splice @widthLeft, -3);
-        my @tops=  grep { $top  - $_ > 4 } map { $_->[1] } (splice @heightTop, -3);
+        # Union of the remaining boxes: content seen in any sample must be kept.
+        my @edge= ( $kept[0][0], $kept[0][1], $kept[0][2], $kept[0][3] );
+        for my $b (@kept) {
+            $edge[0]= $b->[0] if $b->[0] < $edge[0];   # left   -> min
+            $edge[1]= $b->[1] if $b->[1] < $edge[1];   # top    -> min
+            $edge[2]= $b->[2] if $b->[2] > $edge[2];   # right  -> max
+            $edge[3]= $b->[3] if $b->[3] > $edge[3];   # bottom -> max
+        }
 
-        # if any was found, return an invalid value and exit
-        if ( @lefts || @tops ) {
-            for ( my $i= 0; $i < @widthLeft; $i++ ) {
-                print $widthLeft[$i][0] . ":" . $heightTop[$i][0] . ":" . $widthLeft[$i][1] . ":" . $heightTop[$i][1] . " ";
+        # Letterbox and pillarbox bars are cut symmetrically, so opposite bars
+        # should be the same size give or take a couple of pixels. A station
+        # logo sitting in a black bar breaks that: it lights up in some scenes,
+        # pushes that one edge out, and leaves the opposite bar untouched. When
+        # the two bars on an axis differ by a wide margin, trust the larger one
+        # and mirror it - that is the bar the overlay did not reach.
+        #
+        # This beats a frequency test because content that genuinely fills the
+        # frame (a title card, an IMAX sequence) is symmetric, so it is left
+        # alone no matter how few samples show it.
+        if ( $frameWidth && $frameHeight ) {
+            my @axes= (
+                # name, near edge index, far edge index, frame size
+                [ "top/bottom", 1, 3, $frameHeight ],
+                [ "left/right", 0, 2, $frameWidth  ],
+            );
+            for my $axis (@axes) {
+                my ( $name, $near, $far, $size )= @$axis;
+                my $nearBar= $edge[$near];
+                my $farBar=  $size - $edge[$far];
+                next if abs( $nearBar - $farBar ) < $minAsymmetry;
+
+                my $bar= $nearBar > $farBar ? $nearBar : $farBar;
+                # never mirror a bar into more than a third of the frame
+                next if $bar * 3 > $size;
+
+                printf STDERR "cropdetect: %s bars differ (%d vs %d), which usually means a "
+                    . "logo or overlay sits in the smaller one; using %d for both\n",
+                    $name, $nearBar, $farBar, $bar;
+                $edge[$near]= $bar;
+                $edge[$far]=  $size - $bar;
             }
-            exit;
         }
 
+        # round outwards to even numbers, libx264 needs mod-2 dimensions
+        $edge[0]-- if $edge[0] % 2;
+        $edge[1]-- if $edge[1] % 2;
+        $edge[2]++ if $edge[2] % 2;
+        $edge[3]++ if $edge[3] % 2;
 
-        print "crop=$width:$height:$left:$top" if $width && $height;
-        print "," if $width && $height && $width > $maxWidth;
+        my $left=   $edge[0];
+        my $top=    $edge[1];
+        my $width=  $edge[2] - $edge[0];
+        my $height= $edge[3] - $edge[1];
+
+        unless ( $width > 0 && $height > 0 ) {
+            print STDERR "cropdetect: computed an empty crop\n";
+            exit 1;
+        }
+
+        # Sanity check: cropping away more than a quarter of either dimension is
+        # more likely a sampling accident than a real letterbox.
+        if ( $left > $width / 3 || $top > $height / 3 ) {
+            print STDERR "cropdetect: detected crop=$width:$height:$left:$top removes an "
+                . "implausible amount of the frame; pass -vf crop=... explicitly\n";
+            exit 1;
+        }
+
+        print "crop=$width:$height:$left:$top";
+        print "," if $width > $maxWidth;
         print "scale=$maxWidth:-2" if $width > $maxWidth;
     '
 }
@@ -144,22 +215,35 @@ function cleanFile {
     local file="$1"
 
     mkclean --remux "$file" "$file.clean"
-    newLength=`du -k "$file.clean" | cut -f 1`
+
+    if [ ! -s "$file.clean" ]; then
+        echo "mkclean produced no output, keeping '$file' as it is." >&2
+        rm -f "$file.clean"
+        return 1
+    fi
+
+    local newLength=`du -k "$file.clean" | cut -f 1`
 
     # only rename file if result is larger than 100k (mkclean does not always return an error)
-    test "$newLength" -gt 100 && mv "$file.clean" "$file"
+    if [ "$newLength" -gt 100 ]; then
+        mv "$file.clean" "$file"
+    else
+        echo "mkclean output was suspiciously small (${newLength}k), keeping '$file' as it is." >&2
+        rm -f "$file.clean"
+        return 1
+    fi
 }
 
 function simpleEncode {
-    inName="$1"
+    local inName="$1"
 
     if [ ! -f "$inName" ]; then
-        echo "Input file '$inName' does not exist."
-        exit
+        echo "Input file '$inName' does not exist." >&2
+        return 1
     fi
 
     shift
-    videoOptions=(
+    local videoOptions=(
         "-preset" "medium"
         "-tune" "film"
         "-b-pyramid" "normal"
@@ -167,14 +251,13 @@ function simpleEncode {
         "$@"
     )
 
-    outDir="`dirname "$inName"`/.out"
+    local outDir="`dirname "$inName"`/.out"
+    # not local: encodeDvd.sh's optional remux step reads $outName after the call
     outName="$outDir/`basename "$inName" ".mkv"`.mkv"
     test -d "$outDir" || mkdir -p "$outDir"
 
-    filter=( )
-
     # detecting interlace
-    interlaced=`ffmpeg -filter:v idet -frames:v 1000 -an -f rawvideo -y /dev/null -i "file:$inName" 2>&1 | perl -e '
+    local interlaced=`ffmpeg -filter:v idet -frames:v 1000 -an -f rawvideo -y /dev/null -i "file:$inName" 2>&1 | perl -e '
         use strict;
         my $inter= 0;
         my $progress= 0;
@@ -188,10 +271,11 @@ function simpleEncode {
     '`
 
     # extract filter and look for some options (-crf)
-    crfFound=0
-    filter=""
-    newOptions=( )
-    lastOption=""
+    local crfFound=0
+    local filter=""
+    local newOptions=( )
+    local lastOption=""
+    local o
     for o in "${videoOptions[@]}"; do
         [ "$o" = '-crf' ]   && crfFound=1
 
@@ -207,6 +291,8 @@ function simpleEncode {
     done
     videoOptions=( "${newOptions[@]}" )
 
+    # Audio is deliberately left untouched here: audiodetect's AAC/PCM -> AC3
+    # conversion is lossy-to-lossy, so run convertAudio.sh separately when wanted.
 #    audioOptions=( `audiodetect "$inName"` )
 
     # if there is no crf options, add -crf 20
@@ -215,7 +301,13 @@ function simpleEncode {
     # if no crop is given, try detecting and prepend
     if [[ "$filter" != *crop=* ]]; then
         echo "Detecting crop...."
-        crop="`cropdetect "$inName"`"
+        local crop
+        if ! crop="`cropdetect "$inName"`"; then
+            echo "Crop detection was ambiguous: the samples do not agree." >&2
+            echo "Candidates (width:height:left:top): $crop" >&2
+            echo "Pick one and re-run with: -vf crop=<width>:<height>:<left>:<top>" >&2
+            return 1
+        fi
         if [ "$crop" ]; then
             test "$filter" && filter=",$filter"
             filter="${crop}${filter}"
@@ -233,20 +325,29 @@ function simpleEncode {
         videoOptions=( "${videoOptions[@]}" '-filter:V:0' "$filter" )
     fi
 
-    cmd=(
-        ffmpeg -i "file:$inName"
+    if [ -e "$outName" ]; then
+        echo "Output file '$outName' already exists, refusing to overwrite it." >&2
+        return 1
+    fi
+
+    local cmd=(
+        ffmpeg -n -i "file:$inName"
         -f matroska
         -map 0:V:0 -map 0:a -map 0:s? -map 0:d? -map 0:t?
         -c:v libx264 -c:a copy -c:s copy -c:d copy -c:t copy
         "${videoOptions[@]}"
-        "${audioOptions[@]}"
         "file:$outName"
     )
 #        -c:s copy -c:d copy -c:t copy
 
-    echo "Running in 10s ${cmd[@]}"
-    sleep 10s
-    "${cmd[@]}"
+    echo "Running: ${cmd[@]}"
+    read -t 10 -p "Press Enter to start now, Ctrl-C to abort (starts automatically in 10s)... " || true
+    echo
+    if ! "${cmd[@]}"; then
+        echo "ffmpeg failed, leaving '$outName' untouched." >&2
+        return 1
+    fi
+
     copyAttachments "$inName" "$outName"
 
     cleanFile "$outName"
