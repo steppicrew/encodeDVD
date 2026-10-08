@@ -211,6 +211,31 @@ function audiodetect {
     '
 }
 
+function pcmdetect {
+    local file="$1"
+
+    # Lossless LPCM -> FLAC, returns "-c:a:[audio index] flac" for every integer
+    # PCM track. The index counts audio streams only, so it still matches once
+    # cover art is left out of the mapping. Float PCM is skipped, FLAC cannot
+    # hold it losslessly.
+    ffmpeg -i "file:$file" -c:none /dev/null 2>&1 | perl -e '
+        use strict;
+        use warnings;
+        my @result= ();
+        my $audio= 0;
+        while (<>) {
+            next unless /^\s*Stream #0:(\d+)(?:\[0x\w+\])?(?:\(\w+\))?: Audio:\s+(\w+)/;
+            my ($stream, $format)= ($1, $2);
+            if ($format=~ /^pcm_(?:[su](?:8|16|24)(?:[lb]e)?|dvd|bluray)$/) {
+                print STDERR "pcmdetect: audio track $audio (stream #0:$stream, $format) -> flac\n";
+                push @result, "-c:a:$audio", "flac", "-compression_level:a:$audio", "8";
+            }
+            $audio++;
+        }
+        print join(" ", @result);
+    '
+}
+
 function cleanFile {
     local file="$1"
 
@@ -270,8 +295,9 @@ function simpleEncode {
         print "1" if $inter > $progress;
     '`
 
-    # extract filter and look for some options (-crf, -delogo)
+    # extract filter and look for some options (-crf, -delogo, -noflac)
     local crfFound=0
+    local flac=1
     local filter=""
     local delogo=""
     local newOptions=( )
@@ -279,6 +305,7 @@ function simpleEncode {
     local o
     for o in "${videoOptions[@]}"; do
         [ "$o" = '-crf' ]   && crfFound=1
+        [ "$o" = '-noflac' ] && flac=0
 
         if [ "$lastOption" = "-vf" ]; then
             filter="$o"
@@ -287,9 +314,10 @@ function simpleEncode {
             delogo="$o"
         fi
 
-        # skip '-vf'/'-delogo' and their values, they are not ffmpeg options here
+        # skip '-vf'/'-delogo' and their values and '-noflac', they are not ffmpeg options here
         if [ "$o" != '-vf' -a "$lastOption" != '-vf' \
-          -a "$o" != '-delogo' -a "$lastOption" != '-delogo' ]; then
+          -a "$o" != '-delogo' -a "$lastOption" != '-delogo' \
+          -a "$o" != '-noflac' ]; then
             newOptions=( "${newOptions[@]}" "$o" )
         fi
         lastOption="$o"
@@ -314,6 +342,12 @@ function simpleEncode {
     # Audio is deliberately left untouched here: audiodetect's AAC/PCM -> AC3
     # conversion is lossy-to-lossy, so run convertAudio.sh separately when wanted.
 #    audioOptions=( `audiodetect "$inName"` )
+    # LPCM -> FLAC is the exception: it is lossless and only saves space, so it
+    # is on by default; -noflac keeps LPCM for players that cannot play FLAC.
+    local audioOptions=( )
+    if [ "$flac" -eq 1 ]; then
+        audioOptions=( `pcmdetect "$inName"` )
+    fi
 
     # if there is no crf options, add -crf 20
     test "$crfFound" -eq 0 && videoOptions=( "${videoOptions[@]}" '-crf' '20' )
@@ -362,6 +396,7 @@ function simpleEncode {
         -map 0:V:0 -map 0:a -map 0:s? -map 0:d? -map 0:t?
         -c:v libx264 -c:a copy -c:s copy -c:d copy -c:t copy
         "${videoOptions[@]}"
+        "${audioOptions[@]}"
         "file:$outName"
     )
 #        -c:s copy -c:d copy -c:t copy
