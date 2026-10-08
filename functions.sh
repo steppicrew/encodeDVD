@@ -259,6 +259,26 @@ function cleanFile {
     fi
 }
 
+function videoEnd {
+    local file="$1"
+
+    # Prints the last video timestamp in seconds. Only the final minute of the
+    # container is read; in a truncated file the seek lands on the last video
+    # keyframe instead, which is exactly where the video ends.
+    local duration=`ffprobe -v error -show_entries format=duration -of csv=p=0 "file:$file"`
+    [[ "$duration" =~ ^[0-9.]+$ ]] || return 1
+    local start=`perl -e 'printf "%.3f", $ARGV[0] > 60 ? $ARGV[0] - 60 : 0' "$duration"`
+
+    ffprobe -v error -read_intervals "$start%" -select_streams V:0 \
+        -show_entries packet=pts_time -of csv=p=0 "file:$file" | perl -ne '
+        use strict;
+        use warnings;
+        our $max;
+        $max= $1 if /^([0-9.]+)/ && (!defined $max || $1 > $max);
+        END { printf "%.3f", $max if defined $max; }
+    '
+}
+
 function simpleEncode {
     local inName="$1"
 
@@ -402,10 +422,14 @@ function simpleEncode {
         return 1
     fi
 
+    # Subtitles come from a second demuxer of the same file. ffmpeg 9.0.1 sends
+    # the video decoder EOF when a sparse subtitle track (e.g. forced subs with
+    # a gap of an hour) goes quiet in the shared demuxer - the encode then ends
+    # minutes into the film with exit code 0. A separate input is not affected.
     local cmd=(
-        ffmpeg -n -i "file:$inName"
+        ffmpeg -n -i "file:$inName" -i "file:$inName"
         -f matroska
-        -map 0:V:0 -map 0:a -map 0:s? -map 0:d? -map 0:t?
+        -map 0:V:0 -map 0:a -map 1:s? -map 0:d? -map 0:t?
         -c:v libx264 -c:a copy -c:s copy -c:d copy -c:t copy
         "${videoOptions[@]}"
         "${audioOptions[@]}"
@@ -418,6 +442,19 @@ function simpleEncode {
     echo
     if ! "${cmd[@]}"; then
         echo "ffmpeg failed, leaving '$outName' untouched." >&2
+        return 1
+    fi
+
+    # ffmpeg can stop encoding early and still exit 0, so compare where the
+    # video ends in the output with where it ends in the input
+    local inEnd outEnd
+    inEnd=`videoEnd "$inName"`
+    outEnd=`videoEnd "$outName"`
+    if [ -z "$inEnd" -o -z "$outEnd" ]; then
+        echo "Could not determine the video length, skipping the truncation check." >&2
+    elif perl -e 'exit($ARGV[1] < $ARGV[0] - 5 ? 0 : 1)' "$inEnd" "$outEnd"; then
+        echo "Output video ends at ${outEnd}s but the input runs to ${inEnd}s - the encode is truncated." >&2
+        echo "Delete '$outName' before re-encoding." >&2
         return 1
     fi
 
