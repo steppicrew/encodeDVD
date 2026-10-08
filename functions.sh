@@ -295,9 +295,10 @@ function simpleEncode {
         print "1" if $inter > $progress;
     '`
 
-    # extract filter and look for some options (-crf, -delogo, -noflac)
+    # extract filter and look for some options (-crf, -delogo, -noflac, -bw)
     local crfFound=0
     local flac=1
+    local bw=0
     local filter=""
     local delogo=""
     local newOptions=( )
@@ -306,6 +307,7 @@ function simpleEncode {
     for o in "${videoOptions[@]}"; do
         [ "$o" = '-crf' ]   && crfFound=1
         [ "$o" = '-noflac' ] && flac=0
+        [ "$o" = '-bw' ]     && bw=1
 
         if [ "$lastOption" = "-vf" ]; then
             filter="$o"
@@ -314,10 +316,10 @@ function simpleEncode {
             delogo="$o"
         fi
 
-        # skip '-vf'/'-delogo' and their values and '-noflac', they are not ffmpeg options here
+        # skip '-vf'/'-delogo' and their values and '-noflac'/'-bw', they are not ffmpeg options here
         if [ "$o" != '-vf' -a "$lastOption" != '-vf' \
           -a "$o" != '-delogo' -a "$lastOption" != '-delogo' \
-          -a "$o" != '-noflac' ]; then
+          -a "$o" != '-noflac' -a "$o" != '-bw' ]; then
             newOptions=( "${newOptions[@]}" "$o" )
         fi
         lastOption="$o"
@@ -351,6 +353,16 @@ function simpleEncode {
 
     # if there is no crf options, add -crf 20
     test "$crfFound" -eq 0 && videoOptions=( "${videoOptions[@]}" '-crf' '20' )
+
+    # Black and white: neutralise the chroma planes. The picture lives in luma
+    # alone, so chroma only carries noise and tint that x264 would spend bits
+    # on. Stays yuv420p on purpose - format=gray ends up as full-range yuvj420p
+    # (bigger, and it shifts levels), and true 4:0:0 is poorly supported by
+    # hardware players.
+    if [ "$bw" -eq 1 ]; then
+        test "$filter" && filter=",$filter"
+        filter="hue=s=0${filter}"
+    fi
 
     # if no crop is given, try detecting and prepend
     if [[ "$filter" != *crop=* ]]; then

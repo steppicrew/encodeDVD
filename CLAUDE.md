@@ -12,6 +12,7 @@ A set of Bash + Perl wrapper scripts around ffmpeg / MKVToolNix for re-encoding 
 ./encodeBD.sh <file.mkv> [extra ffmpeg options]   # Blu-ray, -crf 25
 ./encodeDvd.sh <file.mkv> [extra ffmpeg options]  # DVD, -crf 20
 ./encodeBD.sh <file.mkv> -noflac                  # any encode script: keep LPCM instead of → FLAC
+./encodeBD.sh <file.mkv> -bw                      # any encode script: black-and-white film, neutral chroma
 ./encodeBD-denoise.sh <file.mkv>                  # encodeBD.sh + hqdn3d, for grainy sources
 ./encodeBD-delogo.sh <x>:<y>:<w>:<h> <file.mkv>   # encodeBD.sh + delogo, blanks a station logo
 ./encode3dBD.sh <file.mkv> [cropTop [cropBottom]] # MVC 3D → half-SBS
@@ -36,7 +37,9 @@ Wrappers resolve their own directory as ``realpath=`realpath "$0"` `` then ``dir
 
 A wrapper that layers a filter (`encodeBD-denoise.sh`) passes it as a trailing `-vf`. `simpleEncode` extracts that value and *appends* it to the autodetected crop rather than replacing it, so cropping still happens.
 
-**Filter order matters.** `simpleEncode` assembles the chain as `delogo, yadif, crop, <user -vf>`. `delogo` must come first because its coordinates are *source* pixels: put it after the crop and the frame shifts under it, so it blurs a band of picture while the logo may already have been cropped off. That is why there is a dedicated `-delogo <x>:<y>:<width>:<height>` option rather than passing `-vf delogo=…`, which would land in the wrong position. Any future filter that is positional in source coordinates needs the same treatment.
+**Filter order matters.** `simpleEncode` assembles the chain as `delogo, yadif, crop, hue=s=0 (only with -bw), <user -vf>`. `delogo` must come first because its coordinates are *source* pixels: put it after the crop and the frame shifts under it, so it blurs a band of picture while the logo may already have been cropped off. That is why there is a dedicated `-delogo <x>:<y>:<width>:<height>` option rather than passing `-vf delogo=…`, which would land in the wrong position. Any future filter that is positional in source coordinates needs the same treatment.
+
+`-bw` (black-and-white films) sets the chroma planes to neutral with `hue=s=0`, so x264 spends nothing on colour noise or tint (about 7% smaller on a noisy test clip). It deliberately stays yuv420p: `format=gray` was measured to end up as full-range `yuvj420p` — larger, and it shifts levels — and real 4:0:0 is poorly supported by hardware players. It also removes deliberate tinting such as sepia scenes, so don't use it on those.
 
 `simpleEncode` (functions.sh) is the whole pipeline for 2D content:
 
